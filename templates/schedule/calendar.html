@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}日历视图 - 部门工作台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">日历视图</h4>
+        <p class="text-muted small mb-0">查看部门全部日程</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('schedule.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-list"></i> 列表视图</a>
+        {% if current_user.is_admin %}
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal">
+            <i class="bi bi-plus-circle"></i> 新建日程
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div id="calendar"></div>
+
+{% if current_user.is_admin %}
+<div class="modal fade" id="createEventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新建日程</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('schedule.create') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">标题 *</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">开始时间 *</label>
+                            <input type="datetime-local" name="start_time" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">结束时间 *</label>
+                            <input type="datetime-local" name="end_time" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label">地点</label>
+                            <input type="text" name="location" class="form-control" placeholder="如：教学楼A301">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label">分类</label>
+                            <select name="category" class="form-select">
+                                <option value="meeting">会议</option>
+                                <option value="lecture">讲座</option>
+                                <option value="prep">筹备</option>
+                                <option value="competition">比赛</option>
+                                <option value="training">培训</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">详细描述</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'zh-cn',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        height: 'auto',
+        events: '{{ url_for("schedule.events_json") }}',
+        eventClick: function(info) {
+            alert(
+                '【' + info.event.title + '】\n' +
+                '时间: ' + info.event.start.toLocaleString('zh-CN') +
+                (info.event.end ? ' ~ ' + info.event.end.toLocaleString('zh-CN') : '') +
+                '\n地点: ' + (info.event.extendedProps.location || '未设置') +
+                '\n描述: ' + (info.event.extendedProps.description || '无')
+            );
+        }
+    });
+    calendar.render();
+});
+</script>
+{% endblock %}
