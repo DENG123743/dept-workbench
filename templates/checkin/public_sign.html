@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议签到</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: #fff;
+            padding: 20px;
+        }
+        .sign-card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 40px;
+            width: 100%; max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .sign-title { text-align: center; font-weight: 700; font-size: 1.4rem; margin-bottom: 8px; }
+        .sign-subtitle { text-align: center; color: rgba(255,255,255,0.6); margin-bottom: 28px; font-size: 0.9rem; }
+        .meeting-info {
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 18px; margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .meeting-info h6 { margin-bottom: 6px; }
+        .meeting-info small { color: rgba(255,255,255,0.6); }
+        .code-input, .name-input {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            text-align: center;
+        }
+        .code-input:focus, .name-input:focus {
+            background: rgba(255,255,255,0.15);
+            border-color: #60a5fa;
+            color: #fff;
+            box-shadow: 0 0 0 3px rgba(96,165,250,0.25);
+        }
+        .btn-sign {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 16px;
+            box-shadow: 0 4px 14px rgba(59,130,246,0.4);
+            transition: transform 0.15s;
+        }
+        .btn-sign:hover { transform: translateY(-2px); }
+        .alert { border-radius: 10px; }
+        .not-found { text-align: center; padding: 30px 0; color: rgba(255,255,255,0.6); }
+        .not-found i { font-size: 3rem; margin-bottom: 12px; display: block; }
+        .back-link { text-align: center; margin-top: 20px; }
+        .back-link a { color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.85rem; }
+        .back-link a:hover { color: #fff; }
+    </style>
+</head>
+<body>
+<div class="sign-card">
+    <div class="sign-title"><i class="bi bi-calendar-check"></i> 会议签到</div>
+    <div class="sign-subtitle">输入签到码或扫码快速签到</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} py-2">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% if flash_msg %}
+        <div class="alert alert-{{ flash_type }} py-2">{{ flash_msg }}</div>
+    {% endif %}
+
+    {% if meeting %}
+    <div class="meeting-info">
+        <h6><i class="bi bi-mic"></i> {{ meeting.title }}</h6>
+        <small>
+            <i class="bi bi-clock"></i> {{ meeting.meeting_time.strftime('%Y-%m-%d %H:%M') }}
+            {% if meeting.location %} · <i class="bi bi-geo-alt"></i> {{ meeting.location }}{% endif %}
+        </small>
+    </div>
+    {% endif %}
+
+    {% if meeting and meeting.status != 'ended' %}
+    <form method="post">
+        <div class="mb-3">
+            <input type="text" name="code" class="form-control code-input" value="{{ meeting.code if meeting else code }}"
+                   placeholder="签到码 ABC123" maxlength="6" required autocomplete="off">
+        </div>
+        {% if not current_user.is_authenticated %}
+        <div class="mb-3">
+            <input type="text" name="real_name" class="form-control name-input"
+                   placeholder="请输入真实姓名" required>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-sign">
+            <i class="bi bi-check-circle"></i> 立即签到
+        </button>
+    </form>
+    {% elif meeting and meeting.status == 'ended' %}
+    <div class="not-found">
+        <i class="bi bi-stop-circle"></i>
+        <div>会议已结束</div>
+    </div>
+    {% elif not meeting %}
+    <form method="post">
+        <div class="mb-3">
+            <input type="text" name="code" class="form-control code-input"
+                   placeholder="签到码 ABC123" maxlength="6" required autocomplete="off">
+        </div>
+        {% if not current_user.is_authenticated %}
+        <div class="mb-3">
+            <input type="text" name="real_name" class="form-control name-input"
+                   placeholder="请输入真实姓名" required>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-sign">
+            <i class="bi bi-check-circle"></i> 立即签到
+        </button>
+    </form>
+    {% endif %}
+
+    <div class="back-link">
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('checkin.index') }}"><i class="bi bi-arrow-left"></i> 返回管理后台</a>
+        {% else %}
+        <a href="{{ url_for('login') }}"><i class="bi bi-box-arrow-in-right"></i> 登录管理后台</a>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
