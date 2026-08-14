@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}文件资源 - 部门工作台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">文件资源</h4>
+        <p class="text-muted small mb-0">部门文档共享与管理</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
+            <i class="bi bi-cloud-upload"></i> 上传文件
+        </button>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-6">
+                <span class="small text-muted me-2">科室：</span>
+                <a href="{{ url_for('files.index', category=current_category) }}"
+                   class="btn btn-sm {{ 'btn-primary' if not current_dept else 'btn-outline-secondary' }}">全部</a>
+                {% for d in departments %}
+                <a href="{{ url_for('files.index', department_id=d.id, category=current_category) }}"
+                   class="btn btn-sm {{ 'btn-primary' if current_dept == d.id else 'btn-outline-secondary' }}">
+                    {{ d.name }}
+                </a>
+                {% endfor %}
+            </div>
+            <div class="col-12 col-md-6">
+                <span class="small text-muted me-2">分类：</span>
+                <a href="{{ url_for('files.index', department_id=current_dept) }}"
+                   class="btn btn-sm {{ 'btn-primary' if not current_category else 'btn-outline-secondary' }}">全部</a>
+                {% set cat_names = {'general': '通用', 'schedule': '日程', 'lecture': '讲座', 'competition': '比赛', 'training': '培训'} %}
+                {% for c in categories %}
+                <a href="{{ url_for('files.index', department_id=current_dept, category=c) }}"
+                   class="btn btn-sm {{ 'btn-primary' if current_category == c else 'btn-outline-secondary' }}">
+                    {{ cat_names.get(c, c) }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if files %}
+        <div class="file-list">
+            {% for f in files %}
+            <div class="file-item">
+                {% set ext_color = {'pdf': '#ef4444', 'doc': '#3b82f6', 'docx': '#3b82f6', 'xls': '#10b981', 'xlsx': '#10b981', 'ppt': '#f59e0b', 'pptx': '#f59e0b'} %}
+                <div class="file-icon" style="background: {{ ext_color.get(f.file_type, '#6b7280') }}">
+                    {% if f.file_type in ['pdf'] %}
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    {% elif f.file_type in ['doc', 'docx'] %}
+                        <i class="bi bi-file-earmark-word"></i>
+                    {% elif f.file_type in ['xls', 'xlsx'] %}
+                        <i class="bi bi-file-earmark-excel"></i>
+                    {% elif f.file_type in ['ppt', 'pptx'] %}
+                        <i class="bi bi-file-earmark-slides"></i>
+                    {% elif f.file_type in ['png', 'jpg', 'jpeg', 'gif'] %}
+                        <i class="bi bi-file-earmark-image"></i>
+                    {% else %}
+                        <i class="bi bi-file-earmark"></i>
+                    {% endif %}
+                </div>
+                <div class="file-info flex-grow-1">
+                    <div class="file-name">{{ f.original_name }}</div>
+                    <div class="file-meta">
+                        {{ f.size_display }} ·
+                        {{ f.file_type|upper if f.file_type else '-' }} ·
+                        上传于 {{ f.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% if f.uploader %} · {{ f.uploader.real_name or f.uploader.username }}{% endif %}
+                        {% if f.department %} · {{ f.department.name }}{% endif %}
+                    </div>
+                    {% if f.description %}
+                    <div class="small text-muted mt-1">{{ f.description }}</div>
+                    {% endif %}
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('uploaded_file', filename=f.filename) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                    <a href="{{ url_for('uploaded_file', filename=f.filename) }}" download class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    {% if current_user.is_admin or f.uploader_id == current_user.id %}
+                    <form method="post" action="{{ url_for('files.delete', file_id=f.id) }}"
+                          data-confirm="确认删除文件 {{ f.original_name }}？" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-folder2-open fs-1"></i>
+            <p class="mt-2">暂无文件，点击右上角上传</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传文件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('files.upload') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择文件 *</label>
+                        <input type="file" name="file" class="form-control" required>
+                        <div class="form-text">支持 PDF、Office 文档、图片、压缩包等，最大 16MB</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">所属部门</label>
+                            <select name="department_id" class="form-select">
+                                <option value="">全体</option>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">分类</label>
+                            <select name="category" class="form-select">
+                                <option value="general">通用</option>
+                                <option value="schedule">日程</option>
+                                <option value="lecture">讲座</option>
+                                <option value="competition">比赛</option>
+                                <option value="training">培训</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">描述</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="可选，简要说明文件内容"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">上传</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
