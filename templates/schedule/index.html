@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}工作安排 - 部门工作台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">工作安排</h4>
+        <p class="text-muted small mb-0">管理部门活动、讲座、会议等日程</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('schedule.calendar') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-calendar3"></i> 日历视图</a>
+        {% if current_user.is_admin %}
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal">
+            <i class="bi bi-plus-circle"></i> 新建日程
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if events %}
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 30px;"></th>
+                    <th>日程名称</th>
+                    <th>开始时间</th>
+                    <th>结束时间</th>
+                    <th>地点</th>
+                    <th>分类</th>
+                    <th>所属部门</th>
+                    <th style="width: 100px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td><span class="category-dot" style="background: {{ event.color or '#6b7280' }}"></span></td>
+                    <td>
+                        <strong>{{ event.title }}</strong>
+                        {% if event.description %}
+                        <div class="small text-muted mt-1 line-clamp-2">{{ event.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ event.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ event.end_time.strftime('%m-%d %H:%M') }}</td>
+                    <td>{{ event.location or '-' }}</td>
+                    <td>
+                        {% set cat_map = {'meeting': '会议', 'lecture': '讲座', 'prep': '筹备', 'competition': '比赛', 'training': '培训', 'other': '其他'} %}
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ cat_map.get(event.category, event.category) }}</span>
+                    </td>
+                    <td>{{ event.department.name if event.department else '全体' }}</td>
+                    <td>
+                        {% if current_user.is_admin %}
+                        <form method="post" action="{{ url_for('schedule.delete', event_id=event.id) }}" data-confirm="确认删除该日程？" style="display:inline;">
+                            <button type="submit" class="btn btn-link btn-sm text-danger p-0">删除</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-calendar-x fs-1"></i>
+            <p class="mt-2">暂无日程，点击右上角新建</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="modal fade" id="createEventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新建日程</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('schedule.create') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">标题 *</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">开始时间 *</label>
+                            <input type="datetime-local" name="start_time" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">结束时间 *</label>
+                            <input type="datetime-local" name="end_time" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label">地点</label>
+                            <input type="text" name="location" class="form-control" placeholder="如：教学楼A301">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label">分类</label>
+                            <select name="category" class="form-select">
+                                <option value="meeting">会议</option>
+                                <option value="lecture">讲座</option>
+                                <option value="prep">筹备</option>
+                                <option value="competition">比赛</option>
+                                <option value="training">培训</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">所属部门</label>
+                        <select name="department_id" class="form-select">
+                            <option value="">全体</option>
+                            {% for d in departments %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">详细描述</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
