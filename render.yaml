@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: dept-workbench
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: waitress-serve --host 0.0.0.0 --port $PORT wsgi:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    databases:
+      - dept-workbench-db
+databases:
+  - name: dept-workbench-db
+    type: postgres
+    version: "16"
