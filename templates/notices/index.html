@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}通知公告 - 部门工作台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">通知公告</h4>
+        <p class="text-muted small mb-0">发布和查看部门通知</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createNoticeModal">
+            <i class="bi bi-pencil-square"></i> 发布公告
+        </button>
+    </div>
+</div>
+
+{% if notices %}
+<div class="notices-list">
+    {% for notice in notices %}
+    <div class="card notice-card mb-3">
+        <div class="card-body">
+            <div class="d-flex align-items-start gap-2">
+                {% if notice.is_top %}
+                <span class="badge bg-danger flex-shrink-0">置顶</span>
+                {% endif %}
+                {% if notice.priority == 'high' %}
+                <span class="badge bg-warning text-dark flex-shrink-0">紧急</span>
+                {% elif notice.priority == 'normal' %}
+                <span class="badge bg-primary-subtle text-primary-emphasis flex-shrink-0">普通</span>
+                {% else %}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis flex-shrink-0">低</span>
+                {% endif %}
+                <div class="flex-grow-1">
+                    <h6 class="mb-2">{{ notice.title }}</h6>
+                    <div class="notice-content-text">{{ notice.content }}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-3 small text-muted">
+                        <div>
+                            <i class="bi bi-clock"></i> {{ notice.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% if notice.author %} · <i class="bi bi-person"></i> {{ notice.author.real_name or notice.author.username }}{% endif %}
+                        </div>
+                        {% if current_user.is_admin or notice.author_id == current_user.id %}
+                        <div class="d-flex gap-2">
+                            <form method="post" action="{{ url_for('notices.toggle_top', notice_id=notice.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                                    <i class="bi {{ 'bi-pin-angle-fill' if notice.is_top else 'bi-pin-angle' }}"></i>
+                                </button>
+                            </form>
+                            <form method="post" action="{{ url_for('notices.delete', notice_id=notice.id) }}"
+                                  data-confirm="确认删除该公告？" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5 card rounded-3">
+    <i class="bi bi-megaphone fs-1"></i>
+    <p class="mt-2">暂无公告</p>
+</div>
+{% endif %}
+
+<div class="modal fade" id="createNoticeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">发布公告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('notices.create') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">标题 *</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">内容 *</label>
+                        <textarea name="content" class="form-control" rows="5" required></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">优先级</label>
+                            <select name="priority" class="form-select">
+                                <option value="low">低</option>
+                                <option value="normal" selected>普通</option>
+                                <option value="high">紧急</option>
+                            </select>
+                        </div>
+                        <div class="col-6 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_top" id="isTopCheck">
+                                <label class="form-check-label" for="isTopCheck">置顶</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">发布</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.notice-card { border: none; border-radius: 12px; box-shadow: var(--card-shadow); }
+.notice-content-text { white-space: pre-wrap; color: #374151; font-size: 0.95rem; line-height: 1.6; }
+</style>
+{% endblock %}
