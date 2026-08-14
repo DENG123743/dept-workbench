@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ meeting.title }} - 签到详情{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">{{ meeting.title }}</h4>
+        <p class="text-muted small mb-0">
+            <i class="bi bi-clock"></i> {{ meeting.meeting_time.strftime('%Y-%m-%d %H:%M') }}
+            {% if meeting.location %} · <i class="bi bi-geo-alt"></i> {{ meeting.location }}{% endif %}
+            ·
+            {% if meeting.status == 'upcoming' %}<span class="badge bg-secondary">未开始</span>
+            {% elif meeting.status == 'ongoing' %}<span class="badge bg-success">进行中</span>
+            {% else %}<span class="badge bg-danger">已结束</span>{% endif %}
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if current_user.is_admin %}
+        {% if meeting.status == 'upcoming' %}
+        <form method="post" action="{{ url_for('checkin.open_meeting', meeting_id=meeting.id) }}">
+            <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-play-fill"></i> 开启签到</button>
+        </form>
+        {% elif meeting.status == 'ongoing' %}
+        <form method="post" action="{{ url_for('checkin.close_meeting', meeting_id=meeting.id) }}">
+            <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-stop-fill"></i> 结束签到</button>
+        </form>
+        {% endif %}
+        {% endif %}
+        <a href="{{ url_for('checkin.public_sign', code=meeting.code, _external=True) }}" target="_blank"
+           class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> 公开签到页
+        </a>
+        <a href="{{ url_for('checkin.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center py-4">
+                <div class="text-muted small mb-2">签到码</div>
+                <div class="display-4 fw-bold text-primary tracking-wider" style="letter-spacing:8px;font-family:Courier New,monospace">
+                    {{ meeting.code }}
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            onclick="navigator.clipboard.writeText('{{ url_for('checkin.public_sign', code=meeting.code, _external=True) }}')">
+                        <i class="bi bi-clipboard"></i> 复制签到链接
+                    </button>
+                </div>
+
+                <hr>
+
+                <div class="row text-start">
+                    <div class="col-6 text-center">
+                        <div class="display-6 fw-bold text-success">{{ present_count }}</div>
+                        <div class="small text-muted">已签到</div>
+                    </div>
+                    <div class="col-6 text-center">
+                        <div class="display-6 fw-bold text-muted">{{ members|length }}</div>
+                        <div class="small text-muted">部门总人数</div>
+                    </div>
+                </div>
+
+                {% set pct = (present_count / members|length * 100) if members|length > 0 else 0 %}
+                <div class="progress mt-3" style="height:8px">
+                    <div class="progress-bar bg-success" style="width: {{ pct }}%"></div>
+                </div>
+                <div class="small text-muted mt-1">出勤率 {{ pct|round }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-list-check"></i> 签到列表（{{ checkins|length }} 人）</h6>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshCheckins()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+            <div class="card-body p-0">
+                {% if checkins %}
+                <table class="table mb-0" id="checkinTable">
+                    <thead>
+                        <tr>
+                            <th style="width:50px">#</th>
+                            <th>姓名</th>
+                            <th>身份</th>
+                            <th>签到时间</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in checkins %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ c.real_name }}</strong></td>
+                            <td>
+                                {% if c.role == 'admin' %}<span class="badge bg-warning text-dark">管理员</span>
+                                {% elif c.role == 'guest' %}<span class="badge bg-secondary">访客</span>
+                                {% else %}成员{% endif %}
+                            </td>
+                            <td>{{ c.check_in_time.strftime('%H:%M:%S') }}</td>
+                            <td><span class="text-success"><i class="bi bi-check-circle-fill"></i> 已签到</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-hourglass-split fs-1"></i>
+                    <p class="mt-2">暂无签到记录</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function refreshCheckins() {
+    fetch('/tasks/api-placeholder').catch(() => {});
+    location.reload();
+}
+</script>
+{% endblock %}
