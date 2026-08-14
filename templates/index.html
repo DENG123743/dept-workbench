@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - 部门工作台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">仪表盘</h4>
+        <p class="text-muted small mb-0">{{ now.strftime('%Y年%m月%d日') }} · 欢迎回来{{ current_user.real_name or current_user.username }}！</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" onclick="sharePage()">
+            <i class="bi bi-share"></i> 分享
+        </button>
+        <a href="{{ url_for('schedule.calendar') }}" class="btn btn-primary btn-sm"><i class="bi bi-calendar3"></i> 日历视图</a>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('schedule.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> 新建日程</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-icon stat-blue"><i class="bi bi-people-fill"></i></div>
+        <div class="stat-body">
+            <div class="stat-value">{{ stats.members }}</div>
+            <div class="stat-label">部门成员</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-green"><i class="bi bi-diagram-3-fill"></i></div>
+        <div class="stat-body">
+            <div class="stat-value">{{ stats.departments }}</div>
+            <div class="stat-label">小组/科室</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-orange"><i class="bi bi-calendar-event-fill"></i></div>
+        <div class="stat-body">
+            <div class="stat-value">{{ stats.events_this_month }}</div>
+            <div class="stat-label">本月活动</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-purple"><i class="bi bi-megaphone-fill"></i></div>
+        <div class="stat-body">
+            <div class="stat-value">{{ stats.notices }}</div>
+            <div class="stat-label">通知公告</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card dashboard-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-clock-history text-primary"></i> 即将到来的日程</h6>
+                <a href="{{ url_for('schedule.index') }}" class="text-decoration-none small">查看全部 →</a>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_events %}
+                <div class="event-list">
+                    {% for event in upcoming_events %}
+                    <div class="event-item">
+                        <div class="event-dot" style="background: {{ event.color or '#3b82f6' }}"></div>
+                        <div class="event-main flex-grow-1">
+                            <div class="event-title">{{ event.title }}</div>
+                            <div class="event-meta small text-muted">
+                                <i class="bi bi-clock"></i>
+                                {{ event.start_time.strftime('%m-%d %H:%M') }} ~ {{ event.end_time.strftime('%H:%M') }}
+                                {% if event.location %} · <i class="bi bi-geo-alt"></i> {{ event.location }}{% endif %}
+                                {% if event.department %} · {{ event.department.name }}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-calendar-x fs-1"></i>
+                    <p class="mt-2">暂无即将到来的日程</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card dashboard-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-megaphone text-danger"></i> 最新公告</h6>
+                <a href="{{ url_for('notices.index') }}" class="text-decoration-none small">查看全部 →</a>
+            </div>
+            <div class="card-body p-0">
+                {% if notices %}
+                <ul class="notice-list">
+                    {% for notice in notices %}
+                    <li class="notice-item">
+                        <div class="notice-title">
+                            {% if notice.is_top %}<span class="badge bg-danger me-1">置顶</span>{% endif %}
+                            {% if notice.priority == 'high' %}<span class="badge bg-warning text-dark me-1">紧急</span>{% endif %}
+                            {{ notice.title }}
+                        </div>
+                        <div class="notice-meta small text-muted">
+                            {{ notice.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% if notice.author %} · {{ notice.author.real_name or notice.author.username }}{% endif %}
+                        </div>
+                        <div class="notice-content small text-muted mt-1 line-clamp-2">{{ notice.content }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-2">暂无公告</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const LAN_BASE = '{{ share_base_url }}';
+
+function sharePage() {
+    const url = buildShareUrl();
+    const title = document.title;
+    const desc = '部门工作台 - 查看日程、公告与成员信息';
+
+    if (navigator.share) {
+        navigator.share({ title, text: desc, url }).catch(() => copyLink(url));
+    } else {
+        copyLink(url);
+    }
+}
+
+function buildShareUrl() {
+    const local = location.origin;
+    if (!LAN_BASE) return location.href;
+    if (LAN_BASE === local) return location.href;
+    return LAN_BASE + location.pathname + location.search + location.hash;
+}
+
+function copyLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        const tip = document.createElement('div');
+        tip.className = 'position-fixed bottom-0 end-0 p-3';
+        tip.style.zIndex = '9999';
+        tip.innerHTML = '<div class="toast show align-items-center text-bg-success border-0" role="alert">' +
+            '<i class="bi bi-check-circle-fill me-2"></i>链接已复制到剪贴板：<code class="ms-1">' + url + '</code></div>';
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 3000);
+    }).catch(() => {
+        prompt('复制以下链接分享给同事：', url);
+    });
+}
+</script>
+{% endblock %}
