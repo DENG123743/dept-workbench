@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% block title %}任务看板 - 部门工作台{% endblock %}
+
+{% block extra_css %}
+<style>
+.kanban-wrap {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 16px;
+    min-height: calc(100vh - 180px);
+}
+.kanban-col {
+    flex: 0 0 320px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+}
+.kanban-col-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 6px 12px;
+}
+.kanban-col-title {
+    font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;
+}
+.kanban-col-count {
+    background: rgba(0,0,0,0.1); border-radius: 10px; padding: 1px 8px;
+    font-size: 0.75rem; font-weight: 600;
+}
+.kanban-col-body {
+    flex: 1; min-height: 100px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: background 0.15s;
+    border-radius: 8px;
+}
+.kanban-col-body.drag-over {
+    background: rgba(59, 130, 246, 0.1);
+    outline: 2px dashed #3b82f6;
+    outline-offset: -4px;
+}
+
+.task-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    cursor: grab;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border-left: 4px solid #cbd5e1;
+}
+.task-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateY(-1px); }
+.task-card.dragging { opacity: 0.5; cursor: grabbing; }
+
+.task-priority-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 10px 10px 0 0;
+}
+.task-card-body { position: relative; }
+.task-title { font-weight: 600; font-size: 0.92rem; color: #1f2937; margin-bottom: 8px; }
+.task-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.78rem; color: #6b7280; margin-bottom: 8px; }
+.task-meta i { margin-right: 3px; }
+
+.progress-wrap { margin-top: 8px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 0.72rem; color: #6b7280; margin-bottom: 3px; }
+.progress-bar-wrap { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); border-radius: 3px; transition: width 0.3s; }
+
+.task-stage-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+
+.task-actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 8px; }
+.task-actions .btn { padding: 2px 6px; font-size: 0.72rem; }
+
+.subtasks { margin-top: 10px; border-top: 1px dashed #e5e7eb; padding-top: 8px; }
+.subtask-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; font-size: 0.82rem;
+}
+.subtask-item .check { cursor: pointer; width: 14px; height: 14px; }
+.subtask-done { text-decoration: line-through; color: #9ca3af; }
+
+.add-task-inline {
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1;
+}
+
+@media (max-width: 992px) {
+    .kanban-wrap { flex-wrap: nowrap; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h4 class="mb-1">任务看板</h4>
+        <p class="text-muted small mb-0">
+            {% if current_project %}
+                项目：{{ current_project.name }}
+                {% if current_project.due_date %} · 截止 {{ current_project.due_date.strftime('%Y-%m-%d') }}{% endif %}
+            {% else %}
+                全部任务（所有项目）
+            {% endif %}
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-diagram-3"></i> 按项目筛选
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ url_for('tasks.index') }}">全部项目</a></li>
+                {% for p in projects %}
+                <li><a class="dropdown-item" href="{{ url_for('tasks.index', project_id=p.id) }}">{{ p.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+            <i class="bi bi-plus-square"></i> 新建项目
+        </button>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+            <i class="bi bi-plus-circle"></i> 新建任务
+        </button>
+    </div>
+</div>
+
+<div class="kanban-wrap">
+    {% for col_key, col_name, col_color in [('todo','待办','#6b7280'),('doing','进行中','#3b82f6'),('review','待验收','#f59e0b'),('done','已完成','#10b981')] %}
+    <div class="kanban-col">
+        <div class="kanban-col-header">
+            <div class="kanban-col-title" style="color: {{ col_color }}">
+                <span style="width:10px;height:10px;border-radius:50%;background:{{ col_color }};display:inline-block"></span>
+                {{ col_name }}
+                <span class="kanban-col-count" id="count-{{ col_key }}">0</span>
+            </div>
+            <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="modal" data-bs-target="#createTaskModal"
+                    onclick="document.getElementById('default_status').value='{{ col_key }}'">
+                <i class="bi bi-plus"></i>
+            </button>
+        </div>
+        <div class="kanban-col-body" data-status="{{ col_key }}"
+             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="this.classList.remove('drag-over'); dropTask(event)">
+            {% for t in tasks if t.kanban_status == col_key %}
+            <div class="task-card" draggable="true"
+                 data-task-id="{{ t.id }}"
+                 ondragstart="dragTask(event, {{ t.id }})">
+                <div class="task-card-body">
+                    <div class="task-priority-bar" style="background: {{ priority_colors.get(t.priority, '#3b82f6') }}"></div>
+                    <div class="task-title mt-1">{{ t.title }}</div>
+                    <div class="task-meta">
+                        {% set stage_color = dict(stage_opts).get(t.stage, '#6b7280') %}
+                        <span><span class="task-stage-dot" style="background:{{ stage_color }}"></span>{{ t.stage }}</span>
+                        {% if t.assignee %}
+                        <span><i class="bi bi-person"></i>{{ t.assignee.real_name or t.assignee.username }}</span>
+                        {% endif %}
+                        {% if t.due_date %}
+                        <span class="{% if t.due_date < today and t.kanban_status != 'done' %}text-danger{% endif %}">
+                            <i class="bi bi-clock"></i>{{ t.due_date.strftime('%m-%d') }}
+                        </span>
+                        {% endif %}
+                        {% if t.children.count() > 0 %}
+                        <span><i class="bi bi-list-task"></i>{{ t.children.count() }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% set pct = t.compute_progress() %}
+                    <div class="progress-wrap">
+                        <div class="progress-label">
+                            <span>进度</span><span>{{ pct }}%</span>
+                        </div>
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+
+                    {% if t.children.count() > 0 %}
+                    <div class="subtasks">
+                        {% for sub in t.children %}
+                        <div class="subtask-item">
+                            <input type="checkbox" class="check" data-task-id="{{ sub.id }}"
+                                   {% if sub.kanban_status == 'done' %}checked{% endif %}
+                                   onchange="toggleSubTask(this)">
+                            <span class="{% if sub.kanban_status == 'done' %}subtask-done{% endif %} flex-grow-1">{{ sub.title }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="task-actions">
+                        <button class="btn btn-outline-secondary" onclick="openStageMenu({{ t.id }})" title="推进阶段">
+                            <i class="bi bi-arrow-right-circle"></i>
+                        </button>
+                        {% if t.project %}
+                        <span class="badge bg-light text-dark align-self-center">{{ t.project.name }}</span>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('tasks.delete_task', task_id=t.id) }}"
+                              data-confirm="确认删除任务「{{ t.title }}」？" style="display:inline;">
+                            <button type="submit" class="btn btn-outline-danger" title="删除"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 创建任务 Modal -->
+<div class="modal fade" id="createTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新建任务</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('tasks.create_task') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="kanban_status" id="default_status" value="todo">
+                    <div class="mb-3">
+                        <label class="form-label">任务标题 *</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">所属项目</label>
+                            <select name="project_id" class="form-select">
+                                <option value="">无</option>
+                                {% for p in projects %}
+                                <option value="{{ p.id }}" {% if current_project and p.id == current_project.id %}selected{% endif %}>{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">父任务（子任务时填）</label>
+                            <select name="parent_id" class="form-select">
+                                <option value="">—</option>
+                                {% for t in tasks %}
+                                <option value="{{ t.id }}">{{ t.title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <label class="form-label">阶段</label>
+                            <select name="stage" class="form-select">
+                                {% for s, _ in stage_opts %}
+                                <option value="{{ s }}">{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">优先级</label>
+                            <select name="priority" class="form-select">
+                                <option value="low">低</option>
+                                <option value="normal" selected>普通</option>
+                                <option value="high">高</option>
+                                <option value="urgent">紧急</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">截止日期</label>
+                            <input type="date" name="due_date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">负责人</label>
+                            <select name="assignee_id" class="form-select">
+                                <option value="">未分配</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.real_name or u.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">所属部门</label>
+                            <select name="department_id" class="form-select">
+                                <option value="">未分配</option>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">详细描述</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 阶段推进 Modal -->
+<div class="modal fade" id="stageModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">推进阶段</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="stageModalBody">
+                {% for s, c in stage_opts %}
+                <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="setStage('{{ s }}')">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ c }};margin-right:8px"></span>{{ s }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建项目 Modal -->
+<div class="modal fade" id="createProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新建项目</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('tasks.create_project') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">项目名称 *</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">所属部门</label>
+                            <select name="department_id" class="form-select">
+                                <option value="">未分配</option>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">截止日期</label>
+                            <input type="date" name="due_date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let draggedTaskId = null;
+
+function dragTask(e, taskId) {
+    draggedTaskId = taskId;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function dropTask(e) {
+    const col = e.currentTarget;
+    const newStatus = col.dataset.status;
+    if (!draggedTaskId) return;
+
+    fetch(`/tasks/task/${draggedTaskId}/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: JSON.stringify({kanban_status: newStatus})
+    }).then(r => {
+        if (r.ok) location.reload();
+    });
+}
+
+let currentStageTaskId = null;
+function openStageMenu(taskId) {
+    currentStageTaskId = taskId;
+    new bootstrap.Modal(document.getElementById('stageModal')).show();
+}
+
+function setStage(stage) {
+    if (!currentStageTaskId) return;
+    fetch(`/tasks/task/${currentStageTaskId}/progress`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({stage: stage})
+    }).then(r => {
+        if (r.ok) location.reload();
+    });
+}
+
+function toggleSubTask(checkbox) {
+    const taskId = checkbox.dataset.taskId;
+    const newStatus = checkbox.checked ? 'done' : 'todo';
+    fetch(`/tasks/task/${taskId}/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({kanban_status: newStatus})
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.kanban-col-body').forEach(body => {
+        const col = body.dataset.status;
+        const count = body.querySelectorAll('.task-card').length;
+        const label = document.getElementById('count-' + col);
+        if (label) label.textContent = count;
+    });
+});
+</script>
+{% endblock %}
