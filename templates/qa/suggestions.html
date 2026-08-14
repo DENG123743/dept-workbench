@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}建议管理（管理员）{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1"><i class="bi bi-lightbulb text-warning"></i> 建议管理</h4>
+        <small class="text-muted">查看、处理成员提交的建议和反馈</small>
+    </div>
+    <div>
+        <a href="{{ url_for('qa.qa_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-question-circle"></i> 查看答疑板块
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ url_for('qa.suggestions') }}" class="btn btn-sm {% if not current_status %}btn-dark{% else %}btn-outline-secondary{% endif %}">全部</a>
+            {% for key, label in statuses %}
+            <a href="{{ url_for('qa.suggestions', status=key) }}" class="btn btn-sm {% if current_status == key %}btn-dark{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+            {% endfor %}
+            <span class="ms-auto text-muted small">共 {{ topics|length }} 条建议</span>
+        </div>
+    </div>
+</div>
+
+{% if topics %}
+{% for topic in topics %}
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+            <div>
+                <div class="d-flex gap-2 align-items-center mb-1">
+                    {% if topic.priority == 'high' %}
+                    <span class="badge bg-danger">高优先级</span>
+                    {% elif topic.priority == 'low' %}
+                    <span class="badge bg-light text-dark">低优先级</span>
+                    {% endif %}
+                    {% if topic.status == 'resolved' %}
+                    <span class="badge bg-success">已采纳</span>
+                    {% elif topic.status == 'rejected' %}
+                    <span class="badge bg-secondary">已忽略</span>
+                    {% elif topic.status == 'processing' %}
+                    <span class="badge bg-warning text-dark">处理中</span>
+                    {% else %}
+                    <span class="badge bg-primary">待处理</span>
+                    {% endif %}
+                </div>
+                <h5 class="mb-1">{{ topic.title }}</h5>
+            </div>
+            <div class="d-flex gap-2 small text-muted">
+                <span><i class="bi bi-person"></i> {{ topic.author.real_name if topic.author else '匿名' }}</span>
+                <span>{{ topic.created_at.strftime('%Y-%m-%d') }}</span>
+            </div>
+        </div>
+        <div class="topic-content border-start border-4 border-warning ps-3 py-2 mb-3 text-body" style="white-space:pre-wrap;background:rgba(255,193,7,.05)">{{ topic.content }}</div>
+
+        {% set replies = topic_replies_map.get(topic.id, []) %}
+        {% if replies %}
+        <div class="mt-3 mb-3">
+            <div class="small text-muted mb-2"><i class="bi bi-reply"></i> 回复记录</div>
+            {% for reply in replies %}
+            <div class="border-start border-4 border-success ps-3 py-2 mb-2" style="background:rgba(25,135,84,.05)">
+                <div class="small mb-1">
+                    <strong>{{ reply.author.real_name if reply.author else '管理员' }}</strong>
+                    <span class="text-muted ms-2">{{ reply.created_at.strftime('%m-%d %H:%M') }}</span>
+                </div>
+                <div style="white-space:pre-wrap">{{ reply.content }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if topic.status in ('open', 'processing') %}
+        <div class="row g-2 align-items-end mt-2">
+            <div class="col-12 col-md-6">
+                <form method="post" action="{{ url_for('qa.suggestion_reply', topic_id=topic.id) }}">
+                    <div class="input-group input-group-sm">
+                        <input type="text" name="content" class="form-control" placeholder="回复提交者..." required>
+                        <button class="btn btn-outline-primary" type="submit">回复</button>
+                    </div>
+                </form>
+            </div>
+            <div class="col-12 col-md-auto d-flex gap-2">
+                {% if topic.status == 'open' %}
+                <form method="post" action="{{ url_for('qa.suggestion_action', topic_id=topic.id, action='processing') }}">
+                    <button class="btn btn-sm btn-outline-warning">标记处理中</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('qa.suggestion_action', topic_id=topic.id, action='accept') }}">
+                    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> 采纳</button>
+                </form>
+                <form method="post" action="{{ url_for('qa.suggestion_action', topic_id=topic.id, action='reject') }}">
+                    <button class="btn btn-sm btn-outline-secondary">忽略</button>
+                </form>
+                <form method="post" action="{{ url_for('qa.delete_topic', topic_id=topic.id) }}" onsubmit="return confirm('确认删除此建议？')">
+                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox display-4"></i>
+    <p class="mt-2">暂无建议，保持开放的心态，鼓励成员多提反馈吧！</p>
+</div>
+{% endif %}
+{% endblock %}
