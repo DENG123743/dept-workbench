@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}答疑板块{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1"><i class="bi bi-question-circle text-primary"></i> 答疑板块</h4>
+        <small class="text-muted">有问题就问，管理员和同事都会帮你解答</small>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModal">
+        <i class="bi bi-plus-lg"></i> 发起提问
+    </button>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ url_for('qa.qa_list') }}" class="btn btn-sm {% if not current_status %}btn-dark{% else %}btn-outline-secondary{% endif %}">全部</a>
+            {% for key, label in statuses %}
+            <a href="{{ url_for('qa.qa_list', status=key) }}" class="btn btn-sm {% if current_status == key %}btn-dark{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+            {% endfor %}
+            <span class="ms-auto text-muted small">共 {{ topics|length }} 个问题</span>
+        </div>
+    </div>
+</div>
+
+{% if topics %}
+<div class="card shadow-sm border-0">
+    <div class="list-group list-group-flush">
+        {% for topic in topics %}
+        <a href="{{ url_for('qa.qa_detail', topic_id=topic.id) }}" class="list-group-item list-group-item-action px-4 py-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <div class="d-flex align-items-center gap-2">
+                    {% if topic.status == 'resolved' %}
+                    <span class="badge bg-success">已解决</span>
+                    {% elif topic.status == 'processing' %}
+                    <span class="badge bg-warning text-dark">处理中</span>
+                    {% else %}
+                    <span class="badge bg-secondary">待处理</span>
+                    {% endif %}
+                    <strong class="fs-5">{{ topic.title }}</strong>
+                </div>
+                <small class="text-muted">{{ topic.updated_at.strftime('%m-%d %H:%M') }}</small>
+            </div>
+            <div class="text-muted small mb-1" style="max-height:2.8em;overflow:hidden">{{ topic.content[:120] }}{% if topic.content|length > 120 %}...{% endif %}</div>
+            <div class="d-flex gap-3 small text-muted">
+                <span><i class="bi bi-person"></i> {{ topic.author.real_name if topic.author else '匿名' }}</span>
+                <span><i class="bi bi-chat-left-text"></i> {{ topic.replies.count() }} 条回复</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox display-4"></i>
+    <p class="mt-2">暂无问题，快去发起第一个提问吧！</p>
+</div>
+{% endif %}
+
+<div class="mt-4 text-center">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#submitSuggestionModal">
+        <i class="bi bi-lightbulb"></i> 提交建议 / 意见反馈
+    </button>
+</div>
+
+<!-- 发起提问 -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="{{ url_for('qa.create_qa') }}">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">发起提问</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">问题标题</label>
+                        <input type="text" name="title" class="form-control" required maxlength="100" placeholder="用一句话描述你的问题">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">详细描述</label>
+                        <textarea name="content" class="form-control" rows="5" required placeholder="详细说明问题背景、遇到的困难..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-primary">发布提问</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 提交建议 -->
+<div class="modal fade" id="submitSuggestionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="{{ url_for('qa.submit_suggestion') }}">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="bi bi-lightbulb text-warning"></i> 提交建议</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info small">你提交的建议仅管理员可见，我们会认真考虑每一条反馈。</div>
+                    <div class="mb-3">
+                        <label class="form-label">建议标题</label>
+                        <input type="text" name="title" class="form-control" required maxlength="100" placeholder="简短描述你的建议">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">具体说明</label>
+                        <textarea name="content" class="form-control" rows="4" required placeholder="说说为什么有这个想法，预期效果是什么..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">优先级</label>
+                        <select name="priority" class="form-select">
+                            <option value="low">一般建议</option>
+                            <option value="normal" selected>普通</option>
+                            <option value="high">希望尽快处理</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-primary">提交建议</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
